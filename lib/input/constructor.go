@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/Jeffail/benthos/v3/internal/docs"
+	"github.com/Jeffail/benthos/v3/internal/label"
 	"github.com/Jeffail/benthos/v3/lib/input/reader"
 	"github.com/Jeffail/benthos/v3/lib/log"
 	"github.com/Jeffail/benthos/v3/lib/metrics"
@@ -46,6 +47,33 @@ type TypeSpec struct {
 	Examples    []docs.AnnotatedExample
 }
 
+// ConstructorFunc is a func signature able to construct an input.
+type ConstructorFunc func(bool, Config, types.Manager, log.Modular, metrics.Type, ...types.PipelineConstructorFunc) (Type, error)
+
+// WalkConstructors iterates each component constructor.
+func WalkConstructors(fn func(ConstructorFunc, docs.ComponentSpec)) {
+	for k, v := range Constructors {
+		spec := docs.ComponentSpec{
+			Type:        "input",
+			Name:        k,
+			Summary:     v.Summary,
+			Description: v.Description,
+			Footnotes:   v.Footnotes,
+			Examples:    v.Examples,
+			Fields:      v.FieldSpecs,
+			Status:      v.Status,
+			Version:     v.Version,
+		}
+		if len(v.Categories) > 0 {
+			spec.Categories = make([]string, 0, len(v.Categories))
+			for _, cat := range v.Categories {
+				spec.Categories = append(spec.Categories, string(cat))
+			}
+		}
+		fn(ConstructorFunc(v.constructor), spec)
+	}
+}
+
 func constructProcessors(
 	hasBatchProc bool,
 	conf Config,
@@ -68,9 +96,9 @@ func constructProcessors(
 			}
 			processors := make([]types.Processor, len(conf.Processors))
 			for j, procConf := range conf.Processors {
-				prefix := fmt.Sprintf("processor.%v", *i)
+				newMgr, newLog, newStats := label.ForChild(fmt.Sprintf("processor.%v", *i), mgr, log, stats)
 				var err error
-				processors[j], err = processor.New(procConf, mgr, log.NewModule("."+prefix), metrics.Namespaced(stats, prefix))
+				processors[j], err = processor.New(procConf, newMgr, newLog, newStats)
 				if err != nil {
 					return nil, fmt.Errorf("failed to create processor '%v': %v", procConf.Type, err)
 				}

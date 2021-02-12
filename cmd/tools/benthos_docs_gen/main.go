@@ -8,6 +8,7 @@ import (
 	"path"
 	"path/filepath"
 
+	"github.com/Jeffail/benthos/v3/internal/bundle"
 	"github.com/Jeffail/benthos/v3/internal/docs"
 	"github.com/Jeffail/benthos/v3/lib/buffer"
 	"github.com/Jeffail/benthos/v3/lib/cache"
@@ -19,6 +20,8 @@ import (
 	"github.com/Jeffail/benthos/v3/lib/ratelimit"
 	"github.com/Jeffail/benthos/v3/lib/tracer"
 	"github.com/Jeffail/benthos/v3/lib/util/config"
+
+	_ "github.com/Jeffail/benthos/v3/public/bundle/all"
 )
 
 //------------------------------------------------------------------------------
@@ -80,33 +83,14 @@ func main() {
 }
 
 func doInputs(docsDir string) {
-	for k, v := range input.Constructors {
-		spec := docs.ComponentSpec{
-			Type:        "input",
-			Name:        k,
-			Summary:     v.Summary,
-			Description: v.Description,
-			Footnotes:   v.Footnotes,
-			Examples:    v.Examples,
-			Fields:      v.FieldSpecs,
-			Status:      v.Status,
-			Version:     v.Version,
-		}
-		if len(v.Categories) > 0 {
-			spec.Categories = make([]string, 0, len(v.Categories))
-			for _, cat := range v.Categories {
-				spec.Categories = append(spec.Categories, string(cat))
-			}
-		}
-
+	for _, v := range bundle.AllInputs.Docs() {
 		conf := input.NewConfig()
-		conf.Type = k
+		conf.Type = v.Name
 		confSanit, err := input.SanitiseConfig(conf)
 		if err != nil {
-			panic(fmt.Sprintf("Failed to generate docs for '%v': %v", k, err))
+			panic(fmt.Sprintf("Failed to generate docs for '%v': %v", v.Name, err))
 		}
-
-		render(path.Join(docsDir, "./inputs", k+".md"), true, confSanit, spec)
+		render(path.Join(docsDir, "./inputs", v.Name+".md"), true, confSanit, v)
 	}
 }
 

@@ -1,0 +1,86 @@
+package bundle
+
+import (
+	"fmt"
+	"sort"
+
+	"github.com/Jeffail/benthos/v3/internal/docs"
+	"github.com/Jeffail/benthos/v3/lib/cache"
+	"github.com/Jeffail/benthos/v3/lib/log"
+	"github.com/Jeffail/benthos/v3/lib/metrics"
+	"github.com/Jeffail/benthos/v3/lib/types"
+)
+
+// AllCaches is a set containing every single cache that has been imported.
+var AllCaches = &CacheSet{
+	specs: map[string]cacheSpec{},
+}
+
+//------------------------------------------------------------------------------
+
+// CacheConstructor constructs an cache component.
+type CacheConstructor func(
+	conf cache.Config,
+	mgr types.Manager,
+	log log.Modular,
+	stats metrics.Type,
+) (types.Cache, error)
+
+type cacheSpec struct {
+	constructor CacheConstructor
+	spec        docs.ComponentSpec
+}
+
+// CacheSet contains an explicit set of caches available to a Benthos service.
+type CacheSet struct {
+	specs map[string]cacheSpec
+}
+
+// Add a new cache to this set by providing a spec (name, documentation, and
+// constructor).
+func (s *CacheSet) Add(constructor CacheConstructor, spec docs.ComponentSpec) error {
+	if _, exists := s.specs[spec.Name]; exists {
+		return fmt.Errorf("conflicting cache name: %v", spec.Name)
+	}
+	s.specs[spec.Name] = cacheSpec{
+		constructor: constructor,
+		spec:        spec,
+	}
+	return nil
+}
+
+// Init attempts to initialise an cache from a config.
+func (s *CacheSet) Init(
+	conf cache.Config,
+	mgr types.Manager,
+	log log.Modular,
+	stats metrics.Type,
+) (types.Cache, error) {
+	spec, exists := s.specs[conf.Type]
+	if !exists {
+		return nil, types.ErrInvalidCacheType
+	}
+	return spec.constructor(conf, mgr, log, stats)
+}
+
+// Docs returns a slice of cache specs, which document each method.
+func (s *CacheSet) Docs() []docs.ComponentSpec {
+	var docs []docs.ComponentSpec
+	for _, v := range s.specs {
+		docs = append(docs, v.spec)
+	}
+	sort.Slice(docs, func(i, j int) bool {
+		return docs[i].Name < docs[j].Name
+	})
+	return docs
+}
+
+// List returns a slice of method names in alphabetical order.
+func (s *CacheSet) List() []string {
+	names := make([]string, 0, len(s.specs))
+	for k := range s.specs {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	return names
+}
