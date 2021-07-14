@@ -376,6 +376,16 @@ func TestMethodParser(t *testing.T) {
 			output:   ``,
 			messages: []easyMsg{{}},
 		},
+		"test capitalize method": {
+			input:    `"FOOBAR".capitalize()`,
+			output:   `Foobar`,
+			messages: []easyMsg{{}},
+		},
+		"test capitalize method recovered": {
+			input:    `["FOO"].capitalize()`,
+			output:   ``,
+			messages: []easyMsg{{}},
+		},
 		"test format method": {
 			input:    `"foo %v bar".format("test")`,
 			output:   `foo test bar`,
